@@ -4,68 +4,77 @@ import string
 import PyPDF2
 import docx
 from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize, sent_tokenize
-from nltk.stem import WordNetLemmatizer
+from nltk.tokenize import sent_tokenize, word_tokenize
+from collections import Counter
 
-# -------------------- NLTK SETUP --------------------
+# =========================
+# Download NLTK resources
+# =========================
 nltk.download("punkt")
 nltk.download("stopwords")
 nltk.download("wordnet")
 
-stop_words = set(stopwords.words("english"))
-lemmatizer = WordNetLemmatizer()
+STOP_WORDS = set(stopwords.words("english"))
 
-# -------------------- TEXT READERS --------------------
+
+# =========================
+# File Reading Function
+# =========================
 def read_text_file(file):
+    """
+    Gradio File component returns a file path (NamedString),
+    NOT a file object.
+    """
     if file is None:
         return ""
 
-    filename = file.name.lower()
+    file_path = str(file).lower()
 
-    if filename.endswith(".txt"):
-        return file.read().decode("utf-8")
+    # TXT
+    if file_path.endswith(".txt"):
+        with open(file, "r", encoding="utf-8", errors="ignore") as f:
+            return f.read()
 
-    elif filename.endswith(".pdf"):
-        reader = PyPDF2.PdfReader(file)
+    # PDF
+    if file_path.endswith(".pdf"):
         text = ""
-        for page in reader.pages:
-            text += page.extract_text() or ""
+        with open(file, "rb") as f:
+            reader = PyPDF2.PdfReader(f)
+            for page in reader.pages:
+                text += page.extract_text() or ""
         return text
 
-    elif filename.endswith(".docx"):
+    # DOCX
+    if file_path.endswith(".docx"):
         document = docx.Document(file)
-        return "\n".join([p.text for p in document.paragraphs])
+        return " ".join(p.text for p in document.paragraphs)
 
-    else:
-        return ""
+    return ""
 
-# -------------------- NLP PREPROCESS --------------------
-def preprocess_sentence(sentence):
-    words = word_tokenize(sentence.lower())
-    words = [
-        lemmatizer.lemmatize(word)
-        for word in words
-        if word.isalpha() and word not in stop_words
-    ]
-    return words
 
-# -------------------- FREQUENCY SUMMARIZER --------------------
-def frequency_based_summarizer(text, num_sentences):
+# =========================
+# Frequency-based Summarizer
+# =========================
+def frequency_based_summarizer(text, num_sentences=5):
     sentences = sent_tokenize(text)
 
-    if len(sentences) == 0:
-        return "❌ No valid text found in document."
+    if len(sentences) <= num_sentences:
+        return text
 
-    word_freq = {}
-    for sentence in sentences:
-        for word in preprocess_sentence(sentence):
-            word_freq[word] = word_freq.get(word, 0) + 1
+    words = word_tokenize(text.lower())
+    words = [
+        w for w in words
+        if w not in STOP_WORDS and w not in string.punctuation
+    ]
+
+    word_freq = Counter(words)
 
     sentence_scores = {}
-    for sentence in sentences:
-        for word in preprocess_sentence(sentence):
+    for sent in sentences:
+        sent_words = word_tokenize(sent.lower())
+        for word in sent_words:
             if word in word_freq:
-                sentence_scores[sentence] = sentence_scores.get(sentence, 0) + word_freq[word]
+                sentence_scores[sent] = sentence_scores.get(sent, 0) + word_freq[word]
 
     summary_sentences = sorted(
         sentence_scores,
@@ -75,46 +84,40 @@ def frequency_based_summarizer(text, num_sentences):
 
     return " ".join(summary_sentences)
 
-# -------------------- GRADIO FUNCTION --------------------
-def summarize_uploaded_document(file, num_sentences):
+
+# =========================
+# Main Summarization Logic
+# =========================
+def summarize(file):
     text = read_text_file(file)
 
-    if len(text.strip()) == 0:
-        return "❌ Uploaded file is empty or unsupported."
+    if not text.strip():
+        return "❌ Please upload a valid TXT, PDF, or DOCX file."
 
-    return frequency_based_summarizer(text, num_sentences)
+    summary = frequency_based_summarizer(text, num_sentences=5)
+    return summary
 
-# -------------------- GRADIO UI --------------------
-with gr.Blocks() as demo:
-    gr.Markdown("# 📄 Extractive Text Summarization App")
-    gr.Markdown("Upload a document and get an extractive summary using NLP")
 
-    file_input = gr.File(
-        label="Upload Document",
+# =========================
+# Gradio UI
+# =========================
+demo = gr.Interface(
+    fn=summarize,
+    inputs=gr.File(
+        label="Upload Document (TXT / PDF / DOCX)",
         file_types=[".txt", ".pdf", ".docx"]
-    )
-
-    sentence_slider = gr.Slider(
-        minimum=1,
-        maximum=10,
-        value=5,
-        step=1,
-        label="Number of sentences in summary"
-    )
-
-    summarize_btn = gr.Button("Generate Summary")
-
-    output_box = gr.Textbox(
+    ),
+    outputs=gr.Textbox(
         label="Summary",
-        lines=15
-    )
+        lines=10
+    ),
+    title="📄 Document Summarization App",
+    description="Extractive text summarization using NLP (NLTK + Frequency-based method)"
+)
 
-    summarize_btn.click(
-        fn=summarize_uploaded_document,
-        inputs=[file_input, sentence_slider],
-        outputs=output_box
-    )
 
-# -------------------- LAUNCH --------------------
+# =========================
+# Run App
+# =========================
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=7860)
+    demo.launch()
