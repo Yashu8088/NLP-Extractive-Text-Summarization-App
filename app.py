@@ -6,6 +6,7 @@ from nltk.tokenize import word_tokenize, sent_tokenize
 from collections import defaultdict
 import os
 os.environ["GRADIO_ANALYTICS_ENABLED"] = "False"
+os.environ["GRADIO_API_INFO"] = "False"
 
 
 nltk.download("punkt")
@@ -66,12 +67,15 @@ def summarize_uploaded_document(file):
     return summary      
 interface = gr.Interface(
     fn=summarize_uploaded_document,
-    inputs=gr.File(label="Upload a Text Document (.txt)"),
-    outputs=gr.Textbox(label="Generated Summary"),
+    inputs=gr.Textbox(lines=15, label="Input Document"),
+    outputs=gr.Textbox(lines=10, label="Summary"),
     title="Extractive Text Summarization App",
-    description="Upload a document and automatically generate a concise summary using NLP-based extractive summarization."
-)
+    description="Summarizes documents using frequency-based extractive NLP")
 
 if __name__ == "__main__":
-    interface.launch(server_name="0.0.0.0", server_port=7860)
+    interface.launch(
+        server_name="0.0.0.0",
+        server_port=7860,
+        share=True
+    )
 
