@@ -20,30 +20,33 @@ jobs:
           python-version: "3.11"
 
       - name: Install Hugging Face Hub
-        run: pip install huggingface_hub
+        run: |
+          pip install --upgrade huggingface_hub
 
       - name: Push to Hugging Face Space
         env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN}}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           python - << "EOF"
           import os
           from huggingface_hub import HfApi
 
-          # Hugging Face Space path
+          # ---- SAFETY CHECK ----
+          token = os.getenv("HF_TOKEN")
+          if not token:
+              raise RuntimeError("HF_TOKEN is missing. Please set it in GitHub Secrets.")
+
+          # Hugging Face Space ID
           repo_id = "yashuchouhan/Extractive_Text_Summarization_App"
 
           api = HfApi()
 
-          # Read token from environment (correct way!)
-          token = os.environ["HF_TOKEN"]
-
-          # Create space if missing
+          # Create Space if it does not exist
           api.create_repo(
               repo_id=repo_id,
               repo_type="space",
-              exist_ok=True,
               space_sdk="gradio",
+              exist_ok=True,
               token=token
           )
 
@@ -52,7 +55,13 @@ jobs:
               folder_path=".",
               repo_id=repo_id,
               repo_type="space",
-              ignore_patterns=[".git", ".github"],
+              ignore_patterns=[
+                  ".git",
+                  ".github",
+                  ".gitignore",
+                  "__pycache__",
+                  "*.pyc"
+              ],
               token=token
           )
           EOF
