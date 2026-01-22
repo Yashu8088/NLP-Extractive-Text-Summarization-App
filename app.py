@@ -1,123 +1,111 @@
 import gradio as gr
 import nltk
-import string
-import PyPDF2
-import docx
 from nltk.corpus import stopwords
 from nltk.tokenize import sent_tokenize, word_tokenize
 from collections import Counter
+import string
+import os
 
-# =========================
-# Download NLTK resources
-# =========================
+import PyPDF2
+import docx
+
+# Download required NLTK data
 nltk.download("punkt")
 nltk.download("stopwords")
-nltk.download("wordnet")
 
-STOP_WORDS = set(stopwords.words("english"))
-
-
-# =========================
-# File Reading Function
-# =========================
-def read_text_file(file):
-    """
-    Gradio File component returns a file path (NamedString),
-    NOT a file object.
-    """
+# ---------- FILE READING ----------
+def read_uploaded_file(file):
     if file is None:
         return ""
 
-    file_path = str(file).lower()
+    file_path = file.name
+    ext = os.path.splitext(file_path)[1].lower()
 
     # TXT
-    if file_path.endswith(".txt"):
-        with open(file, "r", encoding="utf-8", errors="ignore") as f:
+    if ext == ".txt":
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
             return f.read()
 
     # PDF
-    if file_path.endswith(".pdf"):
+    elif ext == ".pdf":
         text = ""
-        with open(file, "rb") as f:
+        with open(file_path, "rb") as f:
             reader = PyPDF2.PdfReader(f)
             for page in reader.pages:
                 text += page.extract_text() or ""
         return text
 
     # DOCX
-    if file_path.endswith(".docx"):
-        document = docx.Document(file)
-        return " ".join(p.text for p in document.paragraphs)
+    elif ext == ".docx":
+        doc = docx.Document(file_path)
+        return "\n".join([p.text for p in doc.paragraphs])
 
-    return ""
+    else:
+        return ""
 
 
-# =========================
-# Frequency-based Summarizer
-# =========================
-def frequency_based_summarizer(text, num_sentences=5):
+# ---------- SUMMARIZER ----------
+def frequency_based_summarizer(text, num_sentences=4):
     sentences = sent_tokenize(text)
 
     if len(sentences) <= num_sentences:
         return text
 
+    stop_words = set(stopwords.words("english"))
     words = word_tokenize(text.lower())
+
     words = [
         w for w in words
-        if w not in STOP_WORDS and w not in string.punctuation
+        if w not in stop_words and w not in string.punctuation
     ]
 
     word_freq = Counter(words)
 
     sentence_scores = {}
     for sent in sentences:
-        sent_words = word_tokenize(sent.lower())
-        for word in sent_words:
+        for word in word_tokenize(sent.lower()):
             if word in word_freq:
                 sentence_scores[sent] = sentence_scores.get(sent, 0) + word_freq[word]
 
     summary_sentences = sorted(
-        sentence_scores,
-        key=sentence_scores.get,
-        reverse=True
+        sentence_scores, key=sentence_scores.get, reverse=True
     )[:num_sentences]
 
     return " ".join(summary_sentences)
 
 
-# =========================
-# Main Summarization Logic
-# =========================
-def summarize(file):
-    text = read_text_file(file)
+def summarize_file(file):
+    text = read_uploaded_file(file)
 
     if not text.strip():
         return "❌ Please upload a valid TXT, PDF, or DOCX file."
 
-    summary = frequency_based_summarizer(text, num_sentences=5)
-    return summary
+    return frequency_based_summarizer(text)
 
 
-# =========================
-# Gradio UI
-# =========================
-demo = gr.Interface(
-    fn=summarize,
-    inputs=gr.File(
-        label="Upload Document (TXT / PDF / DOCX)",
+# ---------- GRADIO UI ----------
+with gr.Blocks() as demo:
+    gr.Markdown("## 📄 Extractive Text Summarization App")
+    gr.Markdown("Upload a document and get the most important sentences.")
+
+    file_input = gr.File(
+        label="Upload Document",
         file_types=[".txt", ".pdf", ".docx"]
-    ),
-    outputs=gr.Textbox(
-        label="Summary",
-        lines=10
-    ),
-    title="📄 Document Summarization App",
-    description="Extractive text summarization using NLP (NLTK + Frequency-based method)"
-)
+    )
+
+    output_text = gr.Textbox(
+        lines=8,
+        label="Summary"
+    )
+
+    summarize_btn = gr.Button("Summarize")
+
+    summarize_btn.click(
+        fn=summarize_file,
+        inputs=file_input,
+        outputs=output_text
+    )
 
 
-# =========================
-# Run App
-# =========================
 if __name__ == "__main__":
-    demo.launch()
+    demo.launch(share=True)
