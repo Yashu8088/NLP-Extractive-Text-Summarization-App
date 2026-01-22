@@ -4,6 +4,9 @@ from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from nltk.tokenize import word_tokenize, sent_tokenize
 from collections import defaultdict
+import os
+os.environ["GRADIO_ANALYTICS_ENABLED"] = "False"
+
 
 nltk.download("punkt")
 nltk.download("stopwords")
@@ -69,5 +72,6 @@ interface = gr.Interface(
     description="Upload a document and automatically generate a concise summary using NLP-based extractive summarization."
 )
 
-interface.launch(server_name="0.0.0.0", server_port=7860)
+if __name__ == "__main__":
+    interface.launch(server_name="0.0.0.0", server_port=7860)
 
