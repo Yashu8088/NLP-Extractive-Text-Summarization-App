@@ -4,6 +4,7 @@ from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from nltk.tokenize import word_tokenize, sent_tokenize
 from collections import defaultdict
+
 import os
 os.environ["GRADIO_ANALYTICS_ENABLED"] = "False"
 os.environ["GRADIO_API_INFO"] = "False"
@@ -49,28 +50,79 @@ def frequency_based_summarizer(text, num_sentences=5):
     summary = " ".join([sentences[i] for i in top_indices])
     return summary
 
-def read_text_file(file):
+from PyPDF2 import PdfReader
+from docx import Document
+
+
+def read_document(file):
     if file is None:
         return ""
-    
-    with open(file.name, 'r', encoding='utf-8', errors='ignore') as f:
-        return f.read()
+
+    file_path = file.name
+    ext = os.path.splitext(file_path)[1].lower()
+
+    text = ""
+
+    if ext == ".txt":
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            text = f.read()
+
+    elif ext == ".pdf":
+        reader = PdfReader(file_path)
+        for page in reader.pages:
+            text += page.extract_text() + "\n"
+
+    elif ext == ".docx":
+        doc = Document(file_path)
+        for para in doc.paragraphs:
+            text += para.text + "\n"
+
+    return text
+
 # Main Summarization Function (APP Logic)
-def summarize_uploaded_document(file):
-    text = read_text_file(file)
 
-    if len(text.strip()) == 0:
-        return "please upload a valid text file."
+def summarize_uploaded_document(file, num_sentences):
+    # Safety check
+    if file is None:
+        return "Please upload a document."
 
-    summary = frequency_based_summarizer(text, num_sentences=5)
+    # Read text from uploaded file
+    text = read_document(file)
 
-    return summary      
+    # Validate extracted text
+    if not text or len(text.strip()) == 0:
+        return "Unable to extract text. Please upload a valid TXT, PDF, or DOCX file."
+
+    # Generate summary
+    summary = frequency_based_summarizer(
+        text=text,
+        num_sentences=num_sentences
+    )
+
+    return summary
+    
 interface = gr.Interface(
     fn=summarize_uploaded_document,
-    inputs=gr.Textbox(lines=15, label="Input Document"),
-    outputs=gr.Textbox(lines=10, label="Summary"),
+    inputs=[
+        gr.File(
+            file_types=[".txt", ".pdf", ".docx"],
+            label="Upload Document"
+        ),
+        gr.Slider(
+            minimum=1,
+            maximum=10,
+            value=5,
+            step=1,
+            label="Number of sentences in summary"
+        )
+    ],
+    outputs=gr.Textbox(
+        lines=15,
+        label="Summary"
+    ),
     title="Extractive Text Summarization App",
-    description="Summarizes documents using frequency-based extractive NLP")
+    description="Upload a document and generate an extractive summary using frequency-based NLP"
+)
 
 if __name__ == "__main__":
     interface.launch(
@@ -78,4 +130,5 @@ if __name__ == "__main__":
         server_port=7860,
         share=True
     )
+
 
