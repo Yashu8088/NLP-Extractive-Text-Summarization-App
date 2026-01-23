@@ -79,8 +79,22 @@ def summarize_file(file):
 
     if not text.strip():
         return "❌ Please upload a valid TXT, PDF, or DOCX file."
-
-    return frequency_based_summarizer(text)
+    text = limit_text_length(text)
+    return frequency_based_summarizer(text, num_sentences=6)
+# ---------------- CONFIG ----------------
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+MAX_WORDS = 8000
+def validate_file_size(file):
+    if file is None:
+        return False, "No file uploaded."
+    if file.size > MAX_FILE_SIZE:
+        return False, "File size exceeds 10 MB limit."
+    return True, None
+def limit_text_length(text):
+    words = text.split()
+    if len(words) > MAX_WORDS:
+        text = " ".join(words[:MAX_WORDS])
+    return text
 
 
 # ---------- GRADIO UI ----------
