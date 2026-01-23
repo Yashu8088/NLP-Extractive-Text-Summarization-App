@@ -17,7 +17,6 @@ This project implements an extractive text summarization system using NLP techni
 ## Features
 - Extractive summarization
 - Built with Python and Gradio
-- Deployed on Hugging Face Spaces
 
 ## Usage
 Paste a document into the textbox and get a concise extractive summary.
